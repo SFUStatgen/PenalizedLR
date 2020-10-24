@@ -1,13 +1,27 @@
-# Case control simulation
+---
+title: "Data simulation experiments"
+author: "BM"
+date: "23/10/2020"
+output: pdf_document
+---
 
+## Case control simulation 1
+
+1. Sample covariates on a population,
+2. sample covariate effects from log-F prior, 
+3. calculate linear predictor of the logistic regression 
+using all covariate effects,
+4. simulate disease status, and
+5. sample cases and controls from population.
+
+```{r}
 ncase <- ncon <- 100
-K <- 50
-m <- 4
-N <- 10000
-beta0 <- (-4)
-MAF <- 0.5
+K <- 50 # num SNPs
+m <- 4 # log-F parameter
+N <- 20000 # popn size
+beta0 <- (-4) # intercept
 
-ccsim <- function(MAF) {
+ccsim1 <- function(MAF) {
   X <- cbind(1,matrix(rbinom(N*K,size=2,p=MAF),ncol=K))
   beta <- c(beta0,log(rf(K,m,m)))
   linpred <- X %*% beta
@@ -18,7 +32,73 @@ ccsim <- function(MAF) {
   list(cc=c(rep(1,ncase),rep(0,ncase)),X = X[c(caseind,conind),],
        beta = beta)
 }
+```
 
-dat1 <- ccsim(MAF=.5)
+* Start with simulations for MAF = 0.5
 
+```{r}
+set.seed(123)
+dat <- ccsim1(MAF=.5)
+betahat <- rep(NA,K)
+for(i in 1:K) {
+  XX <- dat$X[,1+i]
+  betahat[i] <- coef(glm(dat$cc~XX,family=binomial()))[[2]]
+}
+plot(dat$beta[-1],betahat) # correlated, but betahats attenuated 
+hist(betahat,freq=FALSE,nclass=10,ylim=c(0,.8),xlim=c(-3,3))
+hist(dat$beta[-1],freq=FALSE,nclass=10,ylim=c(0,.8),xlim=c(-3,3))
+```
+
+* $\hat{\beta}$'s are correlated with the $\beta$'s but are 
+attenuated. I guess this is why DY and SC's methods are suggesting
+that $m$ is very large (variance of log-F small).
+
+* Next try MAF = 0.5
+
+```{r}
+set.seed(123)
+dat <- ccsim1(MAF=.05)
+betahat <- rep(NA,K)
+for(i in 1:K) {
+  XX <- dat$X[,1+i]
+  betahat[i] <- coef(glm(dat$cc~XX,family=binomial()))[[2]]
+}
+plot(dat$beta[-1],betahat) # betahats still attenuated, but less so 
+hist(betahat,freq=FALSE,nclass=10,ylim=c(0,.8),xlim=c(-3,3))
+hist(dat$beta[-1],freq=FALSE,nclass=10,ylim=c(0,.8),xlim=c(-3,3))
+```
+
+* $\hat{\beta}$'s are less attenuated, but still too small in magnitude.
+* Consistent with the fact that DY and SC's likelihoods for m sometimes
+have a max.
+
+* Can we fit a joint model in X's, like the one used to 
+simulate the data? No, it fails with current sample size.
+
+```{r}
+XX <- dat$X[,-1]
+colnames(XX)<- paste0("X",1:K)
+dd <- data.frame(cc=dat$cc,XX)
+gg <- glm(cc ~ ., data=dd, family=binomial())
+round(cbind(dat$beta,coef(gg),c(1,betahat)),3) # too unstable
+plot(dat$beta[-1],coef(gg)[-1])
+```
+
+## Case control simulation 2
+
+* Use the Qin and Zhang method.
+* If $g(x)$ is the covariate distribution in controls, 
+the distribution in cases is
+proportional to $g(x) \exp(x \beta)$. 
+* If $g(x)$ is $binomial(2,p)$, where $p$ is the MAF (under
+a rare disease, the distribution in controls is about that 
+in the population), then
+
+$$
+g(x) \exp(x \beta) \propto \left\{ \begin{array{rl}
+(1-p)^2 & x=0 \\
+2p(1-p) \exp(\beta) & x = 1 \\
+p^2 \exp(2\beta) & x = 2 \end{array}
+\right. 
+$$
 
