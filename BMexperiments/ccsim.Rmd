@@ -95,7 +95,7 @@ a rare disease, the distribution in controls is about that
 in the population), then
 
 $$
-g(x) \exp(x \beta) \propto \left\{ 
+g(x) \exp(x \beta) = \left\{ 
 \begin{array}{rl}
 (1-p)^2 & x=0 \\
 2p(1-p) \exp(\beta) & x = 1 \\
@@ -112,7 +112,6 @@ rcase <- function(n,beta,MAF) {
   p1 <- 2*MAF*(1-MAF)*exp(beta)
   p2 <- MAF^2*exp(2*beta)
   pp <- c(p0,p1,p2)
-  if(any(pp < 0)) print(c(MAF,beta,pp))
   sample(0:2,size=n,replace=TRUE,prob=pp)
 }
 
@@ -128,8 +127,11 @@ ccsim2 <- function(MAF) {
 }
 ```
 
-* Simulate covariates with MAF = 0.05 and fit singl-SNP models
+* Simulate covariates with MAF = 0.05 and fit single-SNP models
 to see what the coefficients look like.
+    * We see one estimated coefficient of about $-15$, which I guess
+    means non-convergence or monotone likelihood for that covariate.
+
 
 ```{r}
 set.seed(123)
@@ -139,10 +141,11 @@ for(i in 1:K) {
   XX <- dat$X[,i]
   betahat[i] <- coef(glm(dat$cc~XX,family=binomial()))[[2]]
 }
-plot(dat$beta,betahat) # betahats still attenuated, but less so 
+plot(dat$beta,betahat) 
 hist(betahat,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
 hist(dat$beta,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
 ```
+
 
 
 * Repeat with MAF = 0.5
@@ -155,7 +158,7 @@ for(i in 1:K) {
   XX <- dat$X[,i]
   betahat[i] <- coef(glm(dat$cc~XX,family=binomial()))[[2]]
 }
-plot(dat$beta,betahat) # betahats still attenuated, but less so 
+plot(dat$beta,betahat) 
 hist(betahat,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
 hist(dat$beta,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
 ```
