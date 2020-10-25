@@ -80,7 +80,7 @@ XX <- dat$X[,-1]
 colnames(XX)<- paste0("X",1:K)
 dd <- data.frame(cc=dat$cc,XX)
 gg <- glm(cc ~ ., data=dd, family=binomial())
-round(cbind(dat$beta,coef(gg),c(1,betahat)),3) # too unstable
+head(round(cbind(dat$beta,coef(gg),c(1,betahat)),3)) # too unstable
 plot(dat$beta[-1],coef(gg)[-1])
 ```
 
@@ -95,10 +95,68 @@ a rare disease, the distribution in controls is about that
 in the population), then
 
 $$
-g(x) \exp(x \beta) \propto \left\{ \begin{array{rl}
+g(x) \exp(x \beta) \propto \left\{ 
+\begin{array}{rl}
 (1-p)^2 & x=0 \\
 2p(1-p) \exp(\beta) & x = 1 \\
 p^2 \exp(2\beta) & x = 2 \end{array}
-\right. 
+\right. ,
 $$
+
+which has normalizing constant 
+$(1-p)^2 + 2p(1-p) \exp(\beta) + p^2 \exp(2\beta)$.
+
+```{r}
+rcase <- function(n,beta,MAF) {
+  p0 <- (1-MAF)^2
+  p1 <- 2*MAF*(1-MAF)*exp(beta)
+  p2 <- MAF^2*exp(2*beta)
+  pp <- c(p0,p1,p2)
+  if(any(pp < 0)) print(c(MAF,beta,pp))
+  sample(0:2,size=n,replace=TRUE,prob=pp)
+}
+
+ccsim2 <- function(MAF) {
+  Xcon <- matrix(rbinom(ncon*K,size=2,prob=MAF),ncol=K)
+  beta <- log(rf(K,m,m))
+  Xcase <- matrix(NA,ncol=K,nrow=ncase)
+  for(i in 1:K) {
+    Xcase[,i] <- rcase(ncase,beta[i],MAF)
+  }
+  X <- rbind(Xcase,Xcon)
+  list(cc=c(rep(1,ncase),rep(0,ncase)),X = X,beta = beta)
+}
+```
+
+* Simulate covariates with MAF = 0.05 and fit singl-SNP models
+to see what the coefficients look like.
+
+```{r}
+set.seed(123)
+dat <- ccsim2(MAF=.05)
+betahat <- rep(NA,K)
+for(i in 1:K) {
+  XX <- dat$X[,i]
+  betahat[i] <- coef(glm(dat$cc~XX,family=binomial()))[[2]]
+}
+plot(dat$beta,betahat) # betahats still attenuated, but less so 
+hist(betahat,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
+hist(dat$beta,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
+```
+
+
+* Repeat with MAF = 0.5
+
+```{r}
+set.seed(123)
+dat <- ccsim2(MAF=.5)
+betahat <- rep(NA,K)
+for(i in 1:K) {
+  XX <- dat$X[,i]
+  betahat[i] <- coef(glm(dat$cc~XX,family=binomial()))[[2]]
+}
+plot(dat$beta,betahat) # betahats still attenuated, but less so 
+hist(betahat,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
+hist(dat$beta,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
+```
 
