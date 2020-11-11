@@ -1,0 +1,117 @@
+---
+title: "DYexperiments"
+author: "Daisy Yu"
+date: "11/8/2020"
+output: html_document
+---
+
+```{r}
+simSNPCov <- function(n,Beta=log(rf(K,m,m)),MAF) {
+  # Input:
+  # - n is total sample size
+  # - Beta is value of parameter of interest
+  # - MAF is the pre-determined MAF
+  # Output: sim_data
+  
+  ncase <- ncon <- n/2
+  conX <- matrix(NA,ncol=K,nrow=ncon)
+  caseX <- matrix(NA,ncol=K,nrow=ncase)
+  for (i in 1:K){
+    maf=MAF[i]
+    beta=Beta[i]
+    conX[,i]=rbinom(ncon,size=2,prob=maf)
+    p0=(1-maf)^2
+    p1=2*maf*(1-maf)*exp(beta)
+    p2=maf^2*exp(2*beta)
+    pp=c(p0,p1,p2)
+    caseX[,i]=sample(0:2,size=ncase,replace=TRUE,prob=pp)
+  }
+  X <- rbind(caseX,conX)
+  colnames(X) <- paste0("X",1:K);rownames(X) <- NULL
+  case <- c(rep(1,ncase),rep(0,ncon))
+  return (data.frame(X,case))
+} 
+
+simSNPCov_popl <- function(n,Beta=log(rf(K,m,m)),MAF){
+  pop1 <- simSNPCov(n/2,Beta,MAF[,1])
+  pop2 <- simSNPCov(n/2,Beta,MAF[,2])
+  sim_data <- rbind(pop1,pop2) 
+  sim_data$Population <- c(rep("CEU",times=n/2),rep("YRI",times=n/2))
+  
+  pc=prcomp(sim_data[,1:K])
+  #fviz_eig(pc)
+  #pca.plot=autoplot(pc,data=sim_data,colour='Population');pca.plot
+  sim_data=cbind(sim_data,pc$x[,1:10])
+  return(sim_data)
+}
+
+```
+
+
+## Case control simulation with confounders
+
+```{r}
+set.seed(8888)
+load("Input_dataset_1000GP_YRI.RData")
+load("Input_dataset_1000GP_CEU.RData")
+m <- 4
+K <- 50
+
+# Get common SNPs for the two populations
+index <- intersect(colnames(X_CEU),colnames(X_YRI))
+X_CEU <- X_CEU[,index]
+X_YRI <- X_YRI[,index]
+MAF_CEU <- colSums(X_CEU)/(2*dim(X_CEU)[1])
+MAF_YRI <- colSums(X_YRI)/(2*dim(X_YRI)[1])
+Snp_data <- data.frame(CEU=MAF_CEU,YRI=MAF_YRI)
+
+# Sample MAF from joint SFS
+maf <- matrix(nrow=K,ncol=2)
+ceu <- sample(MAF_CEU,size=K)
+for (i in 1:length(ceu)) {
+  maf[i,1]=ceu[i]
+  index=which(Snp_data$CEU==ceu[i])
+  yri=Snp_data$YRI[index]
+  maf[i,2]=sample(yri,size=1)
+}
+
+sim_data <- simSNPCov_popl(n=200,Beta=log(rf(K,m,m)),MAF=maf)
+ggplot(sim_data, aes(x=PC1,y=PC2,color=Population)) + geom_point()
+ggplot(sim_data, aes(x=PC1,y=PC3,color=Population)) + geom_point()
+ggplot(sim_data, aes(x=PC2,y=PC3,color=Population)) + geom_point()
+```
+
+* Coefficients for PCs are fixed
+
+```{r}
+set.seed(8888)
+model_PC_only <- glm(case~PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10,
+                   data=sim_data,family=binomial(link="logit"),maxit=100)
+params <- model_PC_only$coefficients[2:11]
+betahat <- c()
+for(i in 1:K) {
+  XX <- sim_data %>% select(c(paste0("X",i),PC1:PC10,case)) %>% rename(X=paste0("X",i))
+  XX$off <- as.matrix(XX[,2:11])%*%params
+  betahat[i] <- coef(glm(case~offset(off)+X,data=XX,family=binomial()))[[2]]
+}
+
+hist(betahat,nclass=50,)
+```
+
+* Coefficients for PCs are varied by SNPs
+
+```{r}
+set.seed(8888)
+betahat2 <- c()
+for(i in 1:K) {
+  XX <- sim_data %>% select(c(paste0("X",i),PC1:PC10,case)) %>% rename(X=paste0("X",i))
+  betahat2[i] <- coef(glm(case~.,data=XX,family=binomial()))[[2]]
+}
+
+hist(betahat2,nclass=30)
+```
+
+
+
+
+
