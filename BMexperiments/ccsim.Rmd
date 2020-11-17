@@ -163,3 +163,82 @@ hist(betahat,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
 hist(dat$beta,freq=FALSE,nclass=30,ylim=c(0,.4),xlim=c(-3,3))
 ```
 
+## Q&Z with population as a confounder
+
+* Simulate under population stratification with
+    1. population-SNV correlation from different SNV MAFs in different populations
+    2. population-disease correlation by a population main effect on disease risk
+
+* Simulate population status first, and then SNVs conditional on population status.
+
+### Simulate population status
+
+* Let D=0 or 1 denote disease status, with 0 for controls and 1 for cases.
+* Let sub-population $S$ take values 0 or 1 and say their frequency is $f_0$ and
+$f_1$, respectively in the general population. We take these frequencies to 
+be the same among controls (rare disease assumption). 
+* Start by simulating population with log-OR $\beta_s$ using the Q&Z method.
+* The distributon of $S$ in controls, $P(S=s|D=0)$, is $bernoulli(f_1)$, and the
+distribution in cases, $P(S=s|D=1)$ is proportional to
+
+$$
+f_s \exp(s \beta_s) = \left\{ 
+\begin{array}{rl}
+f_0 & s=0 \\
+f_1 \exp(\beta_p) & s = 1 
+\end{array}
+\right. 
+$$
+
+* Use the above distributions to simulate $S$ in controls and cases.
+
+### Simulate SNVs conditional on population status
+
+* We specify the distribution of the SNV in controls and then 
+work out its distribution in cases. 
+    * We need to start with the joint distribution of the SNV and 
+    sub-population, and then find the relevant conditional distributions.
+* For a given SNV $X$, its distribution in controls differs by sub-population, with 
+MAF $p_0$ in sub-population 0 and MAF $p_1$ in sub-population 1. 
+* Let $g_s(x)$ denote  distribution in population $s$, i.e., 
+$P(X=x|S=s,D=0)= g_s(x)$.
+* The joint distribution of $X$ and $S$ in controls is 
+$P(X=x,S=s|D=0) = f_s g_s(x)$.
+* Let $\beta_x$ denote the log-OR for 
+the SNV. I'm going to assume a joint disease risk model with 
+log-OR = $s \beta_s + x \beta_x$. 
+* Then the joint distribution of $X$ and $S$ in cases is proportional to
+
+
+$$
+f_s g_s(x) \exp(s \beta_s + x \beta) = \left\{ 
+\begin{array}{rl}
+f_s \exp(s \beta_s) (1-p_s)^2 & x=0 \\
+f_s  \exp(s \beta_s) 2p_s(1-p_s) \exp(\beta) & x = 1 \\
+f_s  \exp(s \beta_s) p_s^2 \exp(2\beta) & x = 2 \end{array}
+\right. ,
+$$
+
+* From here you can show  (but check me on this)  that
+
+$$
+P(S=s|D=1) \propto f_s \exp(s\beta_s) \sum_{x'} g_s(x') \exp(x'\beta_x).
+$$
+
+* Notice that this is **different** from the distribution used to simulate 
+$S$ in the previous section, which was proportional to $f_s \exp(s\beta_s)$.
+    * The two distributions are the same only when $\beta_x=0$. 
+    * A large $\beta_x$ would tilt the distribution of $S$ in favour of 
+    the sub-population with the larger MAF, I think.
+    * But, to maintain the idea of a dataset with multiple markers on 
+    a sample of cases and controls, I propose that we stick with 
+    $P(S=s|D=1) \propto f_s \exp(s\beta_s)$. Let me know what you think.
+
+* We then have
+
+$$
+P(X=x|S=s,D=1) 
+= \frac{P(X=x,S=s|D=1)}{P(S=s|D=1)} =  \frac{g_s(x) \exp(x\beta_x)}{\sum_{x'} g_s(x') \exp(x'\beta_x)} \propto g_s(x) \exp(x\beta_x).
+$$
+
+
