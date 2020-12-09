@@ -5,113 +5,99 @@ date: "11/8/2020"
 output: html_document
 ---
 
+## Case control simulation with population as a confounder
 ```{r}
-simSNPCov <- function(n,Beta=log(rf(K,m,m)),MAF) {
-  # Input:
-  # - n is total sample size
-  # - Beta is value of parameter of interest
-  # - MAF is the pre-determined MAF
-  # Output: sim_data
-  
+library(dplyr)
+library(ggplot2)
+
+simSNPCov_popl=function(n,Beta=log(rf(K,m,m)),MAF1,MAF2,beta_s){
   ncase <- ncon <- n/2
-  conX <- matrix(NA,ncol=K,nrow=ncon)
-  caseX <- matrix(NA,ncol=K,nrow=ncase)
-  for (i in 1:K){
-    maf=MAF[i]
-    beta=Beta[i]
-    conX[,i]=rbinom(ncon,size=2,prob=maf)
-    p0=(1-maf)^2
-    p1=2*maf*(1-maf)*exp(beta)
-    p2=maf^2*exp(2*beta)
-    pp=c(p0,p1,p2)
-    caseX[,i]=sample(0:2,size=ncase,replace=TRUE,prob=pp)
+  conX <- matrix(NA,ncol=K+1,nrow=ncon)
+  caseX <- matrix(NA,ncol=K+1,nrow=ncase)
+  
+  # Simulate population status first (population is the K+1 column)
+  f_0 <- f_1 <- 0.5
+  conX[,K+1] <- rbinom(ncon,1,f_0)
+  caseX[,K+1] <- sample(0:1,size=ncase,replace=TRUE,prob=c(f_0,f_1*exp(beta_s)))
+  
+  # Simulate SNVs conditional on population status
+  for (i in 1:K){ 
+    maf0 <- MAF1[i]
+    maf1 <- MAF2[i]
+    beta <- Beta[i]
+    
+    ## control
+    con_pop0 <- which(conX[,K+1]==0)
+    con_pop1 <- which(conX[,K+1]==1)
+    
+    conX[con_pop0,i] <- rbinom(length(con_pop0),size=2,prob=maf0)
+    conX[con_pop1,i] <- rbinom(length(con_pop1),size=2,prob=maf1)
+    
+    ## case
+    case_pop0 <- which(caseX[,K+1]==0)
+    case_pop1 <- which(caseX[,K+1]==1)
+    
+    pp0 <- c((1-maf0)^2,2*maf0*(1-maf0)*exp(beta),maf0^2*exp(2*beta))
+    pp1 <- c((1-maf1)^2,2*maf1*(1-maf1)*exp(beta),maf1^2*exp(2*beta))
+    caseX[case_pop0,i] <- sample(0:2,size=length(case_pop0),replace=TRUE,prob=pp0)
+    caseX[case_pop1,i] <- sample(0:2,size=length(case_pop1),replace=TRUE,prob=pp1)
   }
   X <- rbind(caseX,conX)
-  colnames(X) <- paste0("X",1:K);rownames(X) <- NULL
+  colnames(X) <- c(paste0("X",1:K),"Population");rownames(X) <- NULL
   case <- c(rep(1,ncase),rep(0,ncon))
   return (data.frame(X,case))
-} 
-
-simSNPCov_popl <- function(n,Beta=log(rf(K,m,m)),MAF){
-  pop1 <- simSNPCov(n/2,Beta,MAF[,1])
-  pop2 <- simSNPCov(n/2,Beta,MAF[,2])
-  sim_data <- rbind(pop1,pop2) 
-  sim_data$Population <- c(rep("CEU",times=n/2),rep("YRI",times=n/2))
-  
-  pc=prcomp(sim_data[,1:K])
-  #fviz_eig(pc)
-  #pca.plot=autoplot(pc,data=sim_data,colour='Population');pca.plot
-  sim_data=cbind(sim_data,pc$x[,1:10])
-  return(sim_data)
 }
-
 ```
 
 
-## Case control simulation with confounders
-
+## Sample MAF from the joint SFS of CEU and YRI populations.
 ```{r}
-set.seed(8888)
-load("Input_dataset_1000GP_YRI.RData")
-load("Input_dataset_1000GP_CEU.RData")
-m <- 4
-K <- 50
-
-# Get common SNPs for the two populations
+set.seed(1234)
+load("~/Desktop/Simulation/1000GenomesProject/Input_dataset_1000GP_CEU.RData")
+load("~/Desktop/Simulation/1000GenomesProject/Input_dataset_1000GP_YRI.RData")
+m=4
+K=50
 index <- intersect(colnames(X_CEU),colnames(X_YRI))
 X_CEU <- X_CEU[,index]
 X_YRI <- X_YRI[,index]
 MAF_CEU <- colSums(X_CEU)/(2*dim(X_CEU)[1])
 MAF_YRI <- colSums(X_YRI)/(2*dim(X_YRI)[1])
 Snp_data <- data.frame(CEU=MAF_CEU,YRI=MAF_YRI)
-
-# Sample MAF from joint SFS
+#Snp_data <- Snp_data[-which(Snp_data$CEU<=0.05 & Snp_data$YRI<=0.05),]
+#Snp_data <- Snp_data[which(abs(Snp_data$CEU-Snp_data$YRI)>=0.2),]
 maf <- matrix(nrow=K,ncol=2)
-ceu <- sample(MAF_CEU,size=K)
+ceu <- sample(Snp_data$CEU,size=K)
 for (i in 1:length(ceu)) {
-  maf[i,1]=ceu[i]
-  index=which(Snp_data$CEU==ceu[i])
-  yri=Snp_data$YRI[index]
-  maf[i,2]=sample(yri,size=1)
+  maf[i,1] <- ceu[i]
+  index <- which(Snp_data$CEU==ceu[i])
+  yri <- Snp_data$YRI[index]
+  maf[i,2] <- sample(yri,size=1)
+}
+Beta <- log(rf(K,m,m))
+sim_data <- simSNPCov_popl(200,Beta,MAF1 = maf[,1],MAF2 = maf[,2],beta_s=1)
+
+betahat <- c()  # with popl
+betahat0 <- c() # without popl
+for (i in 1:K) {
+  XX <- sim_data %>% select(c(paste0("X",i),Population,case)) %>% rename(X=paste0("X",i))
+  betahat[i] <- coef(glm(case~.,data=XX,family=binomial(),maxit=100))[[2]]
+  
+  XX0 <- sim_data %>% select(c(paste0("X",i),case)) %>% rename(X=paste0("X",i))
+  betahat0[i] <- coef(glm(case~.,data=XX0,family=binomial(),maxit=100))[[2]]
 }
 
-sim_data <- simSNPCov_popl(n=200,Beta=log(rf(K,m,m)),MAF=maf)
-ggplot(sim_data, aes(x=PC1,y=PC2,color=Population)) + geom_point()
-ggplot(sim_data, aes(x=PC1,y=PC3,color=Population)) + geom_point()
-ggplot(sim_data, aes(x=PC2,y=PC3,color=Population)) + geom_point()
-```
-
-* Coefficients for PCs are fixed
-
-```{r}
-set.seed(8888)
-model_PC_only <- glm(case~PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10,
-                   data=sim_data,family=binomial(link="logit"),maxit=100)
-params <- model_PC_only$coefficients[2:11]
-betahat <- c()
-for(i in 1:K) {
-  XX <- sim_data %>% select(c(paste0("X",i),PC1:PC10,case)) %>% rename(X=paste0("X",i))
-  XX$off <- as.matrix(XX[,2:11])%*%params
-  betahat[i] <- coef(glm(case~offset(off)+X,data=XX,family=binomial()))[[2]]
+Confounder=c()
+for (i in 1:50){
+  if (abs(betahat[i]-betahat0[i])/abs(betahat[i]) > 0.1) {Confounder[i]=T}
+  else {Confounder[i]=F}
 }
+sum(Confounder)
+maf <- cbind(maf,Confounder)
 
-hist(betahat,nclass=50,)
+X1 <- data.frame(value=betahat)
+X2 <- data.frame(value=betahat0)
+X1$var <- "with_popl"
+X2$var <- "without_popl"
+data <- rbind(X1, X2)
+ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2)
 ```
-
-* Coefficients for PCs are varied by SNPs
-
-```{r}
-set.seed(8888)
-betahat2 <- c()
-for(i in 1:K) {
-  XX <- sim_data %>% select(c(paste0("X",i),PC1:PC10,case)) %>% rename(X=paste0("X",i))
-  betahat2[i] <- coef(glm(case~.,data=XX,family=binomial()))[[2]]
-}
-
-hist(betahat2,nclass=30)
-```
-
-
-
-
-
