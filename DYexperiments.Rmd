@@ -2,7 +2,7 @@
 title: "DYexperiments"
 author: "Daisy Yu"
 date: "11/8/2020"
-output: html_document
+output: pdf_document
 ---
 
 ## Case control simulation with population as a confounder
@@ -50,7 +50,7 @@ simSNPCov_popl=function(n,Beta=log(rf(K,m,m)),MAF1,MAF2,beta_s){
 ```
 
 
-## Sample MAF from the joint SFS of CEU and YRI populations.
+### Sample MAF from the joint SFS of CEU and YRI populations.
 ```{r}
 set.seed(1234)
 load("~/Desktop/Simulation/1000GenomesProject/Input_dataset_1000GP_CEU.RData")
@@ -101,3 +101,48 @@ X2$var <- "without_popl"
 data <- rbind(X1, X2)
 ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2)
 ```
+Only 20 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients doesn't change a lot with or without population included in the model. I guess this is why our methods are suggesting a similar $m$. 
+
+
+### What if we only restrict to SNPs whose MAF differs by more than 0.4 between the two populations ? 
+```{r}
+set.seed(1234)
+Snp_data <- Snp_data[which(abs(Snp_data$CEU-Snp_data$YRI) >= 0.4),] 
+maf <- matrix(nrow=K,ncol=2);
+ceu <- sample(Snp_data$CEU,size=K)
+for (i in 1:length(ceu)) {
+  maf[i,1] <- ceu[i]
+  index <- which(Snp_data$CEU==ceu[i])
+  yri <- Snp_data$YRI[index]
+  maf[i,2] <- sample(yri,size=1)
+}
+Beta <- log(rf(K,m,m))
+sim_data <- simSNPCov_popl(200,Beta,MAF1=maf[,1],MAF2=maf[,2],beta_s=1)
+
+betahat <- c()  # with popl
+betahat0 <- c() # without popl
+for (i in 1:K) {
+  XX <- sim_data %>% select(c(paste0("X",i),Population,case)) %>% rename(X=paste0("X",i))
+  betahat[i] <- coef(glm(case~.,data=XX,family=binomial(),maxit=100))[[2]]
+  
+  XX0 <- sim_data %>% select(c(paste0("X",i),case)) %>% rename(X=paste0("X",i))
+  betahat0[i] <- coef(glm(case~.,data=XX0,family=binomial(),maxit=100))[[2]]
+}
+
+Confounder=c()
+for (i in 1:50){
+  if (abs(betahat[i]-betahat0[i])/abs(betahat[i]) > 0.1) {Confounder[i]=T}
+  else {Confounder[i]=F}
+}
+sum(Confounder)
+maf <- cbind(maf,Confounder)
+
+X1 <- data.frame(value=betahat)
+X2 <- data.frame(value=betahat0)
+X1$var <- "with_popl"
+X2$var <- "without_popl"
+data <- rbind(X1, X2)
+ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2)
+```
+Now 47 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients with population included in the model has a heavier tail than the distribution without population (i.e. coefficients are more extreme when we include population as a confounder), and this may result in a smaller estimated $m$ when we include population. 
+
