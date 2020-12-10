@@ -53,8 +53,8 @@ simSNPCov_popl=function(n,Beta=log(rf(K,m,m)),MAF1,MAF2,beta_s){
 ### Sample MAF from the joint SFS of CEU and YRI populations.
 ```{r}
 set.seed(1234)
-load("~/Desktop/Simulation/1000GenomesProject/Input_dataset_1000GP_CEU.RData")
-load("~/Desktop/Simulation/1000GenomesProject/Input_dataset_1000GP_YRI.RData")
+load("Input_dataset_1000GP_CEU.RData")
+load("Input_dataset_1000GP_YRI.RData")
 m=4
 K=50
 index <- intersect(colnames(X_CEU),colnames(X_YRI))
@@ -63,31 +63,22 @@ X_YRI <- X_YRI[,index]
 MAF_CEU <- colSums(X_CEU)/(2*dim(X_CEU)[1])
 MAF_YRI <- colSums(X_YRI)/(2*dim(X_YRI)[1])
 Snp_data <- data.frame(CEU=MAF_CEU,YRI=MAF_YRI)
-#Snp_data <- Snp_data[-which(Snp_data$CEU<=0.05 & Snp_data$YRI<=0.05),]
-#Snp_data <- Snp_data[which(abs(Snp_data$CEU-Snp_data$YRI)>=0.2),]
-maf <- matrix(nrow=K,ncol=2)
-ceu <- sample(Snp_data$CEU,size=K)
-for (i in 1:length(ceu)) {
-  maf[i,1] <- ceu[i]
-  index <- which(Snp_data$CEU==ceu[i])
-  yri <- Snp_data$YRI[index]
-  maf[i,2] <- sample(yri,size=1)
-}
+maf <- Snp_data[sample(nrow(Snp_data),K,replace=F),]
 Beta <- log(rf(K,m,m))
 sim_data <- simSNPCov_popl(200,Beta,MAF1 = maf[,1],MAF2 = maf[,2],beta_s=1)
 
 betahat <- c()  # with popl
 betahat0 <- c() # without popl
 for (i in 1:K) {
-  XX <- sim_data %>% select(c(paste0("X",i),Population,case)) %>% rename(X=paste0("X",i))
+  XX <- sim_data %>% dplyr::select(c(paste0("X",i),Population,case)) %>% dplyr::rename(X=paste0("X",i))
   betahat[i] <- coef(glm(case~.,data=XX,family=binomial(),maxit=100))[[2]]
   
-  XX0 <- sim_data %>% select(c(paste0("X",i),case)) %>% rename(X=paste0("X",i))
+  XX0 <- sim_data %>% dplyr::select(c(paste0("X",i),case)) %>% dplyr::rename(X=paste0("X",i))
   betahat0[i] <- coef(glm(case~.,data=XX0,family=binomial(),maxit=100))[[2]]
 }
 
 Confounder=c()
-for (i in 1:50){
+for (i in 1:K){
   if (abs(betahat[i]-betahat0[i])/abs(betahat[i]) > 0.1) {Confounder[i]=T}
   else {Confounder[i]=F}
 }
@@ -99,38 +90,35 @@ X2 <- data.frame(value=betahat0)
 X1$var <- "with_popl"
 X2$var <- "without_popl"
 data <- rbind(X1, X2)
-ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2)
+ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2) + xlim(c(-5,5))
 ```
-Only 20 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients doesn't change a lot with or without population included in the model. I guess this is why our methods are suggesting a similar $m$. 
+26 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients doesn't change a lot with or without population included in the model. I guess we should get a little bit smaller $m$ when we include the population, as suggested by Siyuan's method (see Table 3 and 4 on Overleaf document).
 
 
 ### What if we only restrict to SNPs whose MAF differs by more than 0.4 between the two populations ? 
 ```{r}
 set.seed(1234)
 Snp_data <- Snp_data[which(abs(Snp_data$CEU-Snp_data$YRI) >= 0.4),] 
-maf <- matrix(nrow=K,ncol=2);
-ceu <- sample(Snp_data$CEU,size=K)
-for (i in 1:length(ceu)) {
-  maf[i,1] <- ceu[i]
-  index <- which(Snp_data$CEU==ceu[i])
-  yri <- Snp_data$YRI[index]
-  maf[i,2] <- sample(yri,size=1)
-}
+maf <- Snp_data[sample(nrow(Snp_data),K,replace=F),]
 Beta <- log(rf(K,m,m))
+
+
+Snp_data <- data.frame(CEU=AIM$CEU,YRI=AIM$YRI)
+maf <- Snp_data[sample(nrow(Snp_data),K,replace=F),]
 sim_data <- simSNPCov_popl(200,Beta,MAF1=maf[,1],MAF2=maf[,2],beta_s=1)
 
 betahat <- c()  # with popl
 betahat0 <- c() # without popl
 for (i in 1:K) {
-  XX <- sim_data %>% select(c(paste0("X",i),Population,case)) %>% rename(X=paste0("X",i))
+  XX <- sim_data %>% dplyr::select(c(paste0("X",i),Population,case)) %>% dplyr::rename(X=paste0("X",i))
   betahat[i] <- coef(glm(case~.,data=XX,family=binomial(),maxit=100))[[2]]
   
-  XX0 <- sim_data %>% select(c(paste0("X",i),case)) %>% rename(X=paste0("X",i))
+  XX0 <- sim_data %>% dplyr::select(c(paste0("X",i),case)) %>% dplyr::rename(X=paste0("X",i))
   betahat0[i] <- coef(glm(case~.,data=XX0,family=binomial(),maxit=100))[[2]]
 }
 
 Confounder=c()
-for (i in 1:50){
+for (i in 1:K){
   if (abs(betahat[i]-betahat0[i])/abs(betahat[i]) > 0.1) {Confounder[i]=T}
   else {Confounder[i]=F}
 }
@@ -142,7 +130,7 @@ X2 <- data.frame(value=betahat0)
 X1$var <- "with_popl"
 X2$var <- "without_popl"
 data <- rbind(X1, X2)
-ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2)
+ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2) + xlim(c(-5,5))
 ```
-Now 47 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients with population included in the model has a heavier tail than the distribution without population (i.e. coefficients are more extreme when we include population as a confounder), and this may result in a smaller estimated $m$ when we include population. 
+Now 43 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients with population included in the model has a much heavier tail than the distribution without population (i.e. coefficients are more extreme when we include population as a confounder). In this case, I guess we should get a much smaller $m$ when we include population. 
 
