@@ -63,6 +63,7 @@ X_YRI <- X_YRI[,index]
 MAF_CEU <- colSums(X_CEU)/(2*dim(X_CEU)[1])
 MAF_YRI <- colSums(X_YRI)/(2*dim(X_YRI)[1])
 Snp_data <- data.frame(CEU=MAF_CEU,YRI=MAF_YRI)
+Snp_data <- Snp_data[-which(Snp_data$CEU<=0.05 & Snp_data$YRI<=0.05),]
 maf <- Snp_data[sample(nrow(Snp_data),K,replace=F),]
 Beta <- log(rf(K,m,m))
 sim_data <- simSNPCov_popl(200,Beta,MAF1 = maf[,1],MAF2 = maf[,2],beta_s=1)
