@@ -93,7 +93,7 @@ X2$var <- "without_popl"
 data <- rbind(X1, X2)
 ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2) + xlim(c(-5,5))
 ```
-26 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients doesn't change a lot with or without population included in the model. I guess we should get a little bit smaller $m$ when we include the population, as suggested by Siyuan's method (see Table 3 and 4 on Overleaf document).
+23 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients doesn't change a lot with or without population included in the model. I guess we should get a little bit smaller $m$ when we include the population, as suggested by Siyuan's method (see Table 3 and 4 on Overleaf document).
 
 
 ### What if we only restrict to SNPs whose MAF differs by more than 0.4 between the two populations ? 
@@ -133,5 +133,5 @@ X2$var <- "without_popl"
 data <- rbind(X1, X2)
 ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2) + xlim(c(-5,5))
 ```
-Now 43 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients with population included in the model has a much heavier tail than the distribution without population (i.e. coefficients are more extreme when we include population as a confounder). In this case, I guess we should get a much smaller $m$ when we include population. 
+Now 45 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients with population included in the model has a much heavier tail than the distribution without population (i.e. coefficients are more extreme when we include population as a confounder). In this case, I guess we should get a much smaller $m$ when we include population. 
 
