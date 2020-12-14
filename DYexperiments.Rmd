@@ -5,6 +5,7 @@ date: "11/8/2020"
 output: pdf_document
 ---
 
+
 ## Case control simulation with population as a confounder
 ```{r}
 library(dplyr)
@@ -52,9 +53,9 @@ simSNPCov_popl=function(n,Beta=log(rf(K,m,m)),MAF1,MAF2,beta_s){
 
 ### Sample MAF from the joint SFS of CEU and YRI populations.
 ```{r}
-set.seed(1234)
-load("Input_dataset_1000GP_CEU.RData")
-load("Input_dataset_1000GP_YRI.RData")
+set.seed(6666)
+load("~/Desktop/Simulation/1000GenomesProject/Input_dataset_1000GP_CEU.RData")
+load("~/Desktop/Simulation/1000GenomesProject/Input_dataset_1000GP_YRI.RData")
 m=4
 K=50
 index <- intersect(colnames(X_CEU),colnames(X_YRI))
@@ -93,19 +94,15 @@ X2$var <- "without_popl"
 data <- rbind(X1, X2)
 ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2) + xlim(c(-5,5))
 ```
-23 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients doesn't change a lot with or without population included in the model. I guess we should get a little bit smaller $m$ when we include the population, as suggested by Siyuan's method (see Table 3 and 4 on Overleaf document).
+23 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients doesn't change a lot with or without population included in the model, so we should get a similar $m$. 
 
 
-### What if we only restrict to SNPs whose MAF differs by more than 0.4 between the two populations ? 
+### What if we only restrict to SNPs whose MAF differs by more than 0.3 between the two populations ? 
 ```{r}
-set.seed(1234)
-Snp_data <- Snp_data[which(abs(Snp_data$CEU-Snp_data$YRI) >= 0.4),] 
+set.seed(6666)
+Snp_data <- Snp_data[which(abs(Snp_data$CEU-Snp_data$YRI) >= 0.3),]
 maf <- Snp_data[sample(nrow(Snp_data),K,replace=F),]
 Beta <- log(rf(K,m,m))
-
-
-Snp_data <- data.frame(CEU=AIM$CEU,YRI=AIM$YRI)
-maf <- Snp_data[sample(nrow(Snp_data),K,replace=F),]
 sim_data <- simSNPCov_popl(200,Beta,MAF1=maf[,1],MAF2=maf[,2],beta_s=1)
 
 betahat <- c()  # with popl
@@ -133,5 +130,4 @@ X2$var <- "without_popl"
 data <- rbind(X1, X2)
 ggplot(data, aes(value, fill = var)) + geom_density(alpha = 0.2) + xlim(c(-5,5))
 ```
-Now 43 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients with population included in the model has a much heavier tail than the distribution without population (i.e. coefficients are more extreme when we include population as a confounder). In this case, I guess we should get a much smaller $m$ when we include population. 
-
+Now 43 out of 50 coefficients are changed by more than 10\% when population is excluded. The distribution of estimated coefficients with population included in the model has a heavier tail than the distribution without population (i.e. coefficients are more extreme when we include population as a confounder). In this case, I guess we should get a much smaller $m$ when we include population. 
