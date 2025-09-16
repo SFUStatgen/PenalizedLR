@@ -1,22 +1,31 @@
+# Install required packages
 library(dplyr)
-library(SNPknock)
-
-load("Input_dataset_1000GP.RData")
-load("MCEM_Single-SNP.RData")
+# Load required functions
+source("/scratch/yya188/MCEM.R")
 
 args <- commandArgs()
 n <- as.numeric(args[6])
 print(n)
 
-m=4
-K=10
-set.seed(2020*n+K)
-#sim_data=simUnmatched(n=200,Beta=log(rf(K,m,m)),p=0)     # simulate continuous covariates
-sim_data=simKnockoffGenotypes(n=200,Beta=log(rf(K,m,m)))  # simulate SNP covariates
-pp=profilelkhd(data=sim_data,mvals=c(1:20),N=1000)
+K <- 100
+path <- "/scratch/yya188/data"
+#files2use <- list.files(path,pattern="RData")
+setwd(path)
 
-save(pp,file=paste0("K=10_rep",n,".RData"))
-save(sim_data,file=paste0("data_K=10_",n,".RData"))
+start_index <- 5*(n-1)+1
+seq <- c(start_index,start_index+1,start_index+2,start_index+3,start_index+4)
+files2use <- c(paste0("res_",seq,".RData"))
+for (i in seq) {
+  load(files2use[which(seq==i)])
+  set.seed(1234*i+K)
+  pp <- profilelkhd(data=res$data,mvals=c(1:10),N=100,weight=res$weight)
+  f <- function(x) {stats:::predict.smooth.spline(ss,x)$y}
+  ss <- smooth.spline(pp)
+  m <- optimize(f,lower=1,upper=10,maximum=T)$maximum
+  res$pp <- pp
+  res$m <- m
+  save(res,file=paste0("res_",i,".RData"))
+}
 
 
 
